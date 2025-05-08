@@ -1,12 +1,18 @@
 # Cryptography: Encryption, Decryption, Substitution and Transposition, Confusion and diffusion, Symmetric and Asymmetric encryption, Stream and Block ciphers, DES, cryptanalysis
 
 import numpy as np
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, DES
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad, unpad
+from Crypto.Signature import pkcs1_15
+from Crypto.Hash import SHA256
+from Crypto.Protocol.KDF import scrypt
 import random
 import string
+from PIL import Image
+import io
+import base64
 
 
 # 1. Substitution Cipher (Caesar Cipher)
@@ -81,13 +87,11 @@ def rsa_decrypt(private_key, ciphertext):
 # 5. DES (Data Encryption Standard)
 def des_encrypt(plain_text, key):
     """Encrypt using DES (Data Encryption Standard)"""
-    from Crypto.Cipher import DES
     cipher = DES.new(key, DES.MODE_ECB)
     return cipher.encrypt(pad(plain_text.encode(), DES.block_size))
 
 def des_decrypt(cipher_text, key):
     """Decrypt using DES (Data Encryption Standard)"""
-    from Crypto.Cipher import DES
     cipher = DES.new(key, DES.MODE_ECB)
     return unpad(cipher.decrypt(cipher_text), DES.block_size).decode()
 
@@ -105,61 +109,159 @@ def brute_force_caesar_cipher(ciphertext):
         possibilities.append((shift, caesar_cipher(ciphertext, -shift)))
     return possibilities
 
-# Main example to demonstrate all the above ciphers
+# 8. Public-key Cryptography (RSA Encryption)
+def generate_rsa_keys():
+    """Generate RSA public and private keys"""
+    key = RSA.generate(2048)
+    private_key = key
+    public_key = key.publickey()
+    return public_key, private_key
+
+# 9. Diffie-Hellman Key Exchange (Simple Example)
+def diffie_hellman():
+    """Simulate Diffie-Hellman key exchange"""
+    p = 23  # Prime number
+    g = 5   # Generator
+    a_private = random.randint(1, p-1)  # Alice's private key
+    b_private = random.randint(1, p-1)  # Bob's private key
+
+    # Alice computes public key
+    a_public = pow(g, a_private, p)
+    # Bob computes public key
+    b_public = pow(g, b_private, p)
+
+    # Alice computes shared secret
+    shared_secret_a = pow(b_public, a_private, p)
+    # Bob computes shared secret
+    shared_secret_b = pow(a_public, b_private, p)
+
+    return shared_secret_a, shared_secret_b
+
+# 10. Man-in-the-Middle Attack (Simple Attack Simulation)
+def man_in_the_middle_attack():
+    """Simulate a simple Man-in-the-Middle attack"""
+    p = 23  # Prime number
+    g = 5   # Generator
+    a_private = random.randint(1, p-1)
+    b_private = random.randint(1, p-1)
+
+    # Alice and Bob exchange keys with Eve (attacker)
+    a_public = pow(g, a_private, p)
+    b_public = pow(g, b_private, p)
+    eves_private = random.randint(1, p-1)  # Eve intercepts and modifies
+
+    # Eve sends different public keys
+    eves_public = pow(g, eves_private, p)
+    alice_shared = pow(eves_public, a_private, p)
+    bob_shared = pow(eves_public, b_private, p)
+
+    return alice_shared, bob_shared
+
+# 11. Digital Signature (RSA-based)
+def rsa_sign(private_key, message):
+    """Generate a digital signature"""
+    h = SHA256.new(message.encode())
+    signature = pkcs1_15.new(private_key).sign(h)
+    return signature
+
+def rsa_verify(public_key, message, signature):
+    """Verify the digital signature"""
+    h = SHA256.new(message.encode())
+    try:
+        pkcs1_15.new(public_key).verify(h, signature)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+# 12. Steganography (Hiding text in an image)
+def hide_text_in_image(image_path, secret_text):
+    """Hide secret text in an image using least significant bit method"""
+    image = Image.open(image_path)
+    binary_text = ''.join(format(ord(c), '08b') for c in secret_text)
+    pixels = image.load()
+    width, height = image.size
+    data_index = 0
+
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            if data_index < len(binary_text):
+                r = r & 0xFE | int(binary_text[data_index])
+                data_index += 1
+            if data_index < len(binary_text):
+                g = g & 0xFE | int(binary_text[data_index])
+                data_index += 1
+            if data_index < len(binary_text):
+                b = b & 0xFE | int(binary_text[data_index])
+                data_index += 1
+            pixels[x, y] = (r, g, b)
+            if data_index >= len(binary_text):
+                break
+    image.save("steganography_output.png")
+
+def extract_text_from_image(image_path):
+    """Extract hidden text from an image"""
+    image = Image.open(image_path)
+    binary_text = ""
+    pixels = image.load()
+    width, height = image.size
+
+    for y in range(height):
+        for x in range(width):
+            r, g, b = pixels[x, y]
+            binary_text += str(r & 1)
+            binary_text += str(g & 1)
+            binary_text += str(b & 1)
+
+    binary_text = binary_text[:len(binary_text) // 8 * 8]
+    extracted_text = ''.join(chr(int(binary_text[i:i+8], 2)) for i in range(0, len(binary_text), 8))
+    return extracted_text
+
+# 13. Watermarking (Image-based)
+def add_watermark(image_path, watermark_text):
+    """Add watermark text to an image"""
+    image = Image.open(image_path)
+    pixels = image.load()
+    width, height = image.size
+
+    for x in range(10, 100, 10):
+        for y in range(10, 100, 10):
+            r, g, b = pixels[x, y]
+            pixels[x, y] = (r, g, b)
+
+    image.save("watermarked_image.png")
+
+
+# Example usage to demonstrate the functionalities
+
 if __name__ == "__main__":
+    original_text = "This is a secret message!"
 
-    # 1. Substitution (Caesar Cipher)
-    print("=== Caesar Cipher ===")
-    original_text = "Hello World!"
-    caesar_encrypted = caesar_cipher(original_text, 3)  # Encrypt with a shift of 3
-    print(f"Encrypted: {caesar_encrypted}")
-    caesar_decrypted = caesar_cipher(caesar_encrypted, -3)  # Decrypt with a shift of -3
-    print(f"Decrypted: {caesar_decrypted}\n")
+    # Caesar Cipher
+    caesar_encrypted = caesar_cipher(original_text, 3)
+    print(f"Caesar Encrypted: {caesar_encrypted}")
 
-    # 2. Transposition (Columnar Transposition Cipher)
-    print("=== Columnar Transposition Cipher ===")
-    key = [2, 0, 1]  # Columnar key [2, 0, 1]
-    transposition_encrypted = columnar_transposition_encrypt(original_text, key)
-    print(f"Encrypted: {transposition_encrypted}")
-    transposition_decrypted = columnar_transposition_decrypt(transposition_encrypted, key)
-    print(f"Decrypted: {transposition_decrypted}\n")
+    # Columnar Transposition Cipher
+    transposition_encrypted = columnar_transposition_encrypt(original_text, [2, 0, 1])
+    print(f"Transposition Encrypted: {transposition_encrypted}")
 
-    # 3. Symmetric Encryption (AES)
-    print("=== AES Encryption ===")
-    aes_key = get_random_bytes(16)  # 16 bytes for AES-128
+    # AES Encryption
+    aes_key = get_random_bytes(16)
     aes_encrypted = aes_encrypt(original_text, aes_key)
-    print(f"Encrypted: {aes_encrypted.hex()}")
     aes_decrypted = aes_decrypt(aes_encrypted, aes_key)
-    print(f"Decrypted: {aes_decrypted}\n")
+    print(f"AES Decrypted: {aes_decrypted}")
 
-    # 4. Asymmetric Encryption (RSA)
-    print("=== RSA Encryption ===")
-    rsa_key = RSA.generate(2048)
-    public_key = rsa_key.publickey()
-    private_key = rsa_key
+    # RSA Encryption/Decryption
+    public_key, private_key = generate_rsa_keys()
     rsa_encrypted = rsa_encrypt(public_key, original_text)
-    print(f"Encrypted: {rsa_encrypted.hex()}")
     rsa_decrypted = rsa_decrypt(private_key, rsa_encrypted)
-    print(f"Decrypted: {rsa_decrypted}\n")
+    print(f"RSA Decrypted: {rsa_decrypted}")
 
-    # 5. DES Encryption
-    print("=== DES Encryption ===")
-    des_key = get_random_bytes(8)  # DES requires 8-byte key
-    des_encrypted = des_encrypt(original_text, des_key)
-    print(f"Encrypted: {des_encrypted.hex()}")
-    des_decrypted = des_decrypt(des_encrypted, des_key)
-    print(f"Decrypted: {des_decrypted}\n")
+    # Diffie-Hellman Key Exchange
+    shared_secret_a, shared_secret_b = diffie_hellman()
+    print(f"Shared secrets: {shared_secret_a}, {shared_secret_b}")
 
-    # 6. Stream Cipher (XOR)
-    print("=== XOR Stream Cipher ===")
-    xor_key = "mysecretkey"
-    xor_encrypted = xor_stream_cipher_encrypt_decrypt(original_text, xor_key)
-    print(f"Encrypted: {xor_encrypted}")
-    xor_decrypted = xor_stream_cipher_encrypt_decrypt(xor_encrypted, xor_key)
-    print(f"Decrypted: {xor_decrypted}\n")
-
-    # 7. Cryptanalysis (Brute-force Caesar Cipher Attack)
-    print("=== Cryptanalysis (Brute-force Caesar Cipher) ===")
-    brute_force_results = brute_force_caesar_cipher(caesar_encrypted)
-    for shift, result in brute_force_results:
-        print(f"Shift {shift}: {result}")
+    # Digital Signature
+    signature = rsa_sign(private_key, original_text)
+    is_verified = rsa_verify(public_key, original_text, signature)
+    print(f"Digital Signature Verified: {is_verified}")
